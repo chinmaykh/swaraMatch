@@ -1,0 +1,187 @@
+<!-- SCSCSCSCSCSCSCSCSCSCSCSCSCSCSCSCSCSCSC -->
+<!DOCTYPE html>
+<html lang="en" ng-app="swaraApp">
+
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Project swaraMatch</title>
+
+  <!-- Materialize -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css">
+
+  <!-- Mine -->
+  <link rel="stylesheet" href="/index.css">
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.gstatic.com">
+  <link href="https://fonts.googleapis.com/css2?family=Balsamiq+Sans&family=Montserrat&display=swap" rel="stylesheet">
+
+</head>
+
+<body ng-controller="swaraController">
+
+  <!-- Header -->
+  <div class="section">
+    <div class="container">
+      Project swaraMatch
+      <button class="btn right" ng-click='osc();'>Start</button>
+      <button class="btn right" ng-click='anl();'>Analyze</button>
+    </div>
+  </div>
+  <div class="divider"></div>
+
+  <!-- Content -->
+  <div class="section main">
+    <div class="container">
+      <div class="card-panel yellow" ng-class='high' ng-click='activate("high")'>
+      </div>
+      <div class="card-panel green active" ng-class='norm' ng-click='activate("norm")'>
+      </div>
+      <div class="card-panel blue" ng-class='low' ng-click='activate("low")'>
+      </div>
+    </div>
+  </div>
+  <div class="divider"></div>
+
+  <!-- Footer -->
+  <div class="section">
+    <div class="container">
+      <p class="right">
+        {{maxFreq | number : 2}} | {{dataArray[maxIndex] | number : 2}}
+      </p>
+
+      <!-- <button class='btn yellow' ng-click='ufq(880)'>Higher</button>
+      <button class='btn blue' ng-click='ufq(220)'>Lower</button>
+      <button class='btn green' ng-click='ufq(440)'>Normalize</button>
+      <audio src="/Up Town Funk.mp3" autoplay controls></audio> -->
+    </div>
+
+
+  </div>
+
+  <!-- Footer -->
+
+  <!-- Materialize and Angular-->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
+  <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.8.2/angular.min.js"></script>
+
+  <script>
+    var app = angular.module("swaraApp", []);
+
+    app.controller("swaraController", ($scope, $interval) => {
+      console.log('Swara Controller loaded...');
+
+      // Predefined home variable
+      $scope.baseIndex = 41;
+
+      // Flip UI states
+      $scope.activate = (note) => {
+        // console.log(note);
+        $scope[note] = 'active';
+        classes = ['high', 'norm', 'low'];
+        classes.forEach(clas => {
+          if (clas != note) {
+            $scope[clas] = 'inactive'
+          }
+        });
+
+      }
+
+      // Run FFT and get frequency of max amplitude
+      $scope.anl = () => {
+        // Get the frequency data
+        $scope.analyser.getFloatFrequencyData($scope.dataArray);
+        // log it
+        // console.log('Frequencies available', $scope.dataArray.length);
+        // console.log('Step Size', ($scope.audioContext.sampleRate / 2) / $scope.dataArray.length);
+        // console.log($scope.dataArray);
+
+        $scope.maxIndex = $scope.dataArray.reduce((iMax, x, i, arr) => x > arr[iMax] ? i : iMax, 0);
+        $scope.stepSize = ($scope.audioContext.sampleRate / 2) / $scope.dataArray.length
+        $scope.maxFreq = $scope.maxIndex * $scope.stepSize
+      }
+
+      // Start the audioContext
+      $scope.osc = () => {
+
+        navigator.mediaDevices.getUserMedia({ audio: true })
+          .then(function (stream) {
+            /* use the stream */
+
+            // Making the magic
+            const audioContext = new AudioContext();
+
+            // Dummy audio generator
+            // $scope.oscillator = audioContext.createOscillator();
+            // $scope.oscillator.type = 'sine';
+            // $scope.oscillator.frequency.setValueAtTime(440, audioContext.currentTime); // value in hertz
+
+            // get the audio element
+            const audioElement = document.querySelector('audio');
+
+            // pass it into the audio context
+            // const track = audioContext.createMediaElementSource(audioElement);
+            const track = audioContext.createMediaStreamSource(stream);
+
+            // Create audio analyser
+            $scope.analyser = audioContext.createAnalyser();
+            $scope.analyser.fftSize = 8192;
+
+            // Creating frequency domain array
+            $scope.dataArray = new Float32Array($scope.analyser.frequencyBinCount);
+
+            // Connecting the nodes
+            // $scope.oscillator.connect($scope.analyser);
+            track.connect($scope.analyser);
+            $scope.analyser.connect(audioContext.destination);
+
+            // Start
+            // $scope.oscillator.start()
+
+            $scope.audioContext = audioContext;
+
+            $interval($scope.updUI, 10);
+          })
+          .catch(function (err) {
+            /* handle the error */
+            console.log('Microphone not accessible');
+          });
+
+
+      }
+
+      // Update the UI
+      $scope.updUI = function () {
+        $scope.anl();
+        diff = $scope.maxIndex - $scope.baseIndex
+        console.log($scope.maxIndex, $scope.baseIndex, $scope.dataArray[$scope.maxIndex]);
+
+        if ($scope.dataArray[$scope.maxIndex] > -60) {
+          if (Math.abs(diff) < 6) {
+            // Within limit
+            $scope.activate('norm')
+          } else {
+            if (diff > 0) {
+              // Higher Pitch
+              $scope.activate('high')
+            } else {
+              // Lower Pitch
+              $scope.activate('low')
+            }
+          }
+        }
+      }
+
+      // Manually Control the Oscillator frequency 
+      $scope.ufq = (userFreq) => {
+        $scope.oscillator.frequency.setValueAtTime(userFreq, $scope.audioContext.currentTime); // value in hertz
+      }
+
+    });
+
+  </script>
+</body>
+
+</html>
